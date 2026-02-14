@@ -20,7 +20,8 @@ Namespace DownloadObjects
         Friend Event MediaDeleted(ByVal Sender As Object)
         Friend Event MediaDeletedText(ByVal Sender As Object)
         Friend Event MediaDownload As EventHandler
-        Friend Event FeedAddWithRemove(ByVal Sender As FeedMedia, ByVal Feeds As IEnumerable(Of String), ByVal Media As UserMediaD, ByVal RemoveOperation As Boolean)
+        Friend Event FeedRemoveCheckedMedia(ByVal Sender As FeedMedia, ByVal Media As UserMediaD, ByVal Names As IEnumerable(Of String),
+                                            ByVal IsOverriddenNames As Boolean, ByVal IsAddAndRemove As Boolean)
         Friend Event MediaMove As MediaMoveCopyEventHandler
         Friend Event MediaCopy As MediaMoveCopyEventHandler
 #End Region
@@ -435,11 +436,11 @@ Namespace DownloadObjects
         End Function
         Private Sub Feed_SPEC_ADD_REMOVE(ByVal Source As ToolStripMenuItem, ByVal e As EventArgs)
             Dim f As FeedSpecial = Feed_SPEC_ADD_Impl(Source)
-            If Not f Is Nothing Then RaiseEvent FeedAddWithRemove(Me, {f.Name}, Media, False)
+            If Not f Is Nothing Then RaiseEvent FeedRemoveCheckedMedia(Me, Media, {f.Name}, False, True)
         End Sub
         Private Sub Feed_SPEC_REMOVE(ByVal Source As ToolStripMenuItem, ByVal e As EventArgs)
             Dim f As FeedSpecial = Source.Tag
-            If Not f Is Nothing AndAlso Not f.Disposed Then f.Remove(Media) : RaiseEvent FeedAddWithRemove(Me, {f.Name}, Media, True)
+            If Not f Is Nothing AndAlso Not f.Disposed Then f.Remove(Media) : RaiseEvent FeedRemoveCheckedMedia(Me, Media, {f.Name}, True, False)
         End Sub
 #End Region
 #Region "Dispose"
@@ -598,14 +599,14 @@ Namespace DownloadObjects
             With Settings.Feeds.Favorite
                 If Not .Contains(Media) Then .Add(Media)
                 BTT_FEED_ADD_FAV.ControlChangeColor(True, False)
-                If sender Is BTT_FEED_ADD_FAV_REMOVE Then RaiseEvent FeedAddWithRemove(Me, {FeedSpecial.FavoriteName}, Media, False)
+                If sender Is BTT_FEED_ADD_FAV_REMOVE Then RaiseEvent FeedRemoveCheckedMedia(Me, Media, {FeedSpecial.FavoriteName}, False, True)
             End With
         End Sub
         Private Sub BTT_FEED_ADD_SPEC_Click(sender As Object, e As EventArgs) Handles BTT_FEED_ADD_SPEC.Click, BTT_FEED_ADD_SPEC_REMOVE.Click
             With FeedSpecialCollection.ChooseFeeds(True)
                 If .ListExists Then
                     .ForEach(Sub(f) f.Add(Media))
-                    If sender Is BTT_FEED_ADD_SPEC_REMOVE Then RaiseEvent FeedAddWithRemove(Me, .Select(Function(f) f.Name), Media, False)
+                    If sender Is BTT_FEED_ADD_SPEC_REMOVE Then RaiseEvent FeedRemoveCheckedMedia(Me, Media, .Select(Function(f) f.Name), False, True)
                 End If
             End With
         End Sub
@@ -613,14 +614,14 @@ Namespace DownloadObjects
             With Settings.Feeds.Favorite
                 If .Contains(Media) Then .Remove(Media)
                 BTT_FEED_ADD_FAV.ControlChangeColor(True)
-                RaiseEvent FeedAddWithRemove(Me, {FeedSpecial.FavoriteName}, Media, True)
+                RaiseEvent FeedRemoveCheckedMedia(Me, Media, {FeedSpecial.FavoriteName}, True, False)
             End With
         End Sub
         Private Sub BTT_FEED_REMOVE_SPEC_Click(sender As Object, e As EventArgs) Handles BTT_FEED_REMOVE_SPEC.Click
             With FeedSpecialCollection.ChooseFeeds(False)
                 If .ListExists Then
                     .ForEach(Sub(f) f.Remove(Media))
-                    RaiseEvent FeedAddWithRemove(Me, .Select(Function(f) f.Name), Media, True)
+                    RaiseEvent FeedRemoveCheckedMedia(Me, Media, .Select(Function(f) f.Name), True, False)
                 End If
             End With
         End Sub

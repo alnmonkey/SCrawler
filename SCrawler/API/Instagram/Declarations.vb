@@ -20,6 +20,7 @@ Namespace API.Instagram
         Friend Const PageTokenRegexPatternDefault As String = "\[\],{""token"":""(.*?)""},\d+\]"
         Friend ReadOnly Regex_UserToken_dtsg As RParams = RParams.DMS("DTSGInitialData["":,.\[\]]*?{\s*.token.:\s*""([^""]+)", 1, EDP.ReturnValue)
         Friend ReadOnly Regex_UserToken_lsd As RParams = RParams.DMS("LSD["":,.\[\]]*?{\s*.token.:\s*""([^""]+)", 1, EDP.ReturnValue)
+        Friend ReadOnly Regex_ProfileID As RParams = RParams.DMS("profilePage_(\d+)", 1, EDP.ReturnValue)
         Friend Sub UpdateResponser(ByVal Source As IResponse, ByRef Destination As Responser, ByVal UpdateWwwClaim As Boolean)
             Const r_wwwClaimName$ = "x-ig-set-www-claim"
             Const r_tokenName$ = SiteSettings.Header_CSRF_TOKEN_COOKIE

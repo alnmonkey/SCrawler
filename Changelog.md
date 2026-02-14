@@ -2,12 +2,29 @@
 - [ffmpeg](https://github.com/AAndyProgram/SCrawler/wiki/Settings#ffmpeg)
   - x64 version - [release](https://github.com/GyanD/codexffmpeg/releases/tag/5.1.2); [zip](https://github.com/GyanD/codexffmpeg/releases/download/5.1.2/ffmpeg-5.1.2-full_build.zip); **version `5.1.2-full_build-www.gyan.dev`**
   - x86 version - [release](https://github.com/yt-dlp/FFmpeg-Builds/releases/tag/autobuild-2022-11-30-12-57); [zip](https://github.com/yt-dlp/FFmpeg-Builds/releases/download/autobuild-2022-11-30-12-57/ffmpeg-N-109274-gd7a5f068c2-win32-gpl.zip); **version `N-109457-geeb280f351-20221226`**
-- [Gallery-dl](https://github.com/AAndyProgram/SCrawler/wiki/Settings#gallery-dl) - **1.31.4**
-- [YT-DLP](https://github.com/AAndyProgram/SCrawler/wiki/Settings#yt-dlp) - **2025.12.08**
+- [Gallery-dl](https://github.com/AAndyProgram/SCrawler/wiki/Settings#gallery-dl) - **1.31.6**
+- [YT-DLP](https://github.com/AAndyProgram/SCrawler/wiki/Settings#yt-dlp) - **2026.02.04.233607**
 - [Deno](https://github.com/AAndyProgram/SCrawler/wiki/Settings#deno) - latest *(`2.0.0` or higher)*
 - [OF-Scraper](https://github.com/AAndyProgram/SCrawler/wiki/Settings#of-scraper) - **3.12.9** ([release](https://github.com/datawhores/OF-Scraper/releases/tag/3.12.9))
 
 # 2026
+
+## 2026.2.14.0
+
+*2026-02-14*
+
+- Added
+  - Sites:
+    - Twitter: get a new username based on the user ID
+  - Minor improvements
+- Updated
+  - gallery-dl up to version **1.31.6**
+  - yt-dlp up to version **2026.02.04.233607**
+- Fixed
+  - Sites:
+    - **Instagram: some profiles aren't downloading**
+    - xHamster: videos aren't downloading
+  - Minor bugs
 
 ## 2026.1.24.0
 

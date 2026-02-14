@@ -36,6 +36,8 @@ Namespace API.Instagram
         <PSetting(Caption:="Place the extracted image into the video folder")>
         Friend Property PutImageVideoFolder As Boolean
         Friend Overrides Property UserName As String
+        <PSetting(Address:=SettingAddress.User, Caption:="Verified profile", ToolTip:="This profile has a verified mark")>
+        Friend Property IsVerifiedProfile As Boolean = False
         <PSetting(Address:=SettingAddress.User, Caption:="Force update UserName", ToolTip:="Try to force update UserName if it is not found on the site")>
         Friend Property ForceUpdateUserName As Boolean = False
         <PSetting(Address:=SettingAddress.User, Caption:="Force update user information")>
@@ -56,6 +58,8 @@ Namespace API.Instagram
                 GetTagged_VideoPic = .GetTaggedData_VideoPic
 
                 PutImageVideoFolder = .PutImageVideoFolder
+
+                IsVerifiedProfile = .IsVerifiedProfile
 
                 ForceUpdateUserName = .ForceUpdateUserName
                 ForceUpdateUserInfo = .ForceUpdateUserInfo

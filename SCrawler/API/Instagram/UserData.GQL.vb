@@ -6,12 +6,13 @@
 '
 ' This program is distributed in the hope that it will be useful,
 ' but WITHOUT ANY WARRANTY
+Imports System.Security.Cryptography
 Imports System.Threading
-Imports SCrawler.API.Base
-Imports PersonalUtilities.Functions.XML
 Imports PersonalUtilities.Functions.RegularExpressions
+Imports PersonalUtilities.Functions.XML
 Imports PersonalUtilities.Tools.Web.Clients
 Imports PersonalUtilities.Tools.Web.Documents.JSON
+Imports SCrawler.API.Base
 Namespace API.Instagram
     Partial Friend Class UserData
 #Region "Tokens"
@@ -43,9 +44,9 @@ Namespace API.Instagram
         Private Const GQL_UserStories_DocId As String = "25231722019806941"
         Private Const GQL_UserStories_FbFriendlyName As String = "PolarisStoriesV3ReelPageStandaloneQuery"
 
-        Private Const GQL_Timeline_DocId As String = "7268577773270422"
+        Private Const GQL_Timeline_DocId As String = "7268577773270422" '"34579740524958711" '"7268577773270422"
         Private Const GQL_Timeline_FbFriendlyName As String = "PolarisProfilePostsQuery"
-        Private Const GQL_Timeline_DocId_Second As String = "7286316061475375"
+        Private Const GQL_Timeline_DocId_Second As String = "7286316061475375" '"33944389991841132" '"7286316061475375"
         Private Const GQL_Timeline_FbFriendlyName_Second As String = "PolarisProfilePostsTabContentQuery_connection"
 
         Private Const GQL_Reels_DocId As String = "7191572580905225"
@@ -64,33 +65,42 @@ Namespace API.Instagram
             Responser.Headers.Add(GQL_HEADER_FB_FRINDLY_NAME, HeaderValue)
             Responser.Headers.Add(GQL_HEADER_FB_LSD, Token_lsd)
         End Sub
-        <Obsolete("Use 'GET' function: 'GetUserData'", False)>
-        Private Sub GetUserDataGQL(ByVal Token As CancellationToken)
+        '<Obsolete("Use 'GET' function: 'GetUserData'", False)>
+        Private Function GetUserDataGQL(ByVal Token As CancellationToken) As String
             Dim vars$ = String.Format(GQL_URL_PATTERN_VARS, GQL_UserData_DocId, Token_lsd, Token_dtsg_Var, GQL_UserData_FbFriendlyName,
                                       SymbolsConverter.ASCII.EncodeSymbolsOnly("{" & $"""id"":""{ID}"",""relay_header"":false,""render_surface"":""PROFILE""" & "}"))
             UpdateRequestNumber()
             ChangeResponserMode(True)
             UpdateHeadersGQL(GQL_UserData_FbFriendlyName)
             Dim r$ = Responser.GetResponse(GQL_URL, vars)
-            If Not r.IsEmptyString Then
-                Using j As EContainer = JsonDocument.Parse(r)
-                    If j.ListExists Then
-                        With j({"data", "user"})
-                            If .ListExists Then
-                                UserSiteName = .Value("full_name").IfNullOrEmpty(UserSiteName)
-                                Dim f As New SFile With {.Path = DownloadContentDefault_GetRootDir(), .Name = "ProfilePicture", .Extension = "jpg"}
-                                Dim pic$ = .Value({"hd_profile_pic_url_info"}, "url").IfNullOrEmpty(.Value("profile_pic_url"))
-                                If Not pic.IsEmptyString Then GetWebFile(pic, f, EDP.ReturnValue)
-                                UserDescriptionUpdate(.Value("biography"))
-                            End If
-                        End With
-                    End If
-                End Using
-            End If
-        End Sub
+            Return r
+            'If Not r.IsEmptyString Then
+            '    Using j As EContainer = JsonDocument.Parse(r)
+            '        If j.ListExists Then
+            '            With j({"data", "user"})
+            '                If .ListExists Then
+            '                    UserSiteName = .Value("full_name").IfNullOrEmpty(UserSiteName)
+            '                    IsVerifiedProfile = .Value("is_verified").FromXML(Of Boolean)(False)
+            '                    IsVerifiedProfile_Checked = True
+            '                    Dim descr$ = .Value("biography")
+            '                    If If(.Item("bio_links")?.Count, 0) > 0 Then descr.StringAppend(.Item("bio_links").Select(Function(bl) bl.Value("url")).ListToString(vbNewLine), vbNewLine)
+            '                    Dim eUrl$ = .Value("external_url")
+            '                    If Not eUrl.IsEmptyString AndAlso (descr.IsEmptyString OrElse Not descr.Contains(eUrl)) Then descr.StringAppendLine(eUrl)
+            '                    UserDescriptionUpdate(descr)
+
+            '                    Dim f As New SFile With {.Path = DownloadContentDefault_GetRootDir(), .Name = "ProfilePicture", .Extension = "jpg"}
+            '                    Dim pic$ = .Value({"hd_profile_pic_url_info"}, "url").IfNullOrEmpty(.Value("profile_pic_url"))
+            '                    If Not pic.IsEmptyString Then GetWebFile(pic, f, EDP.ReturnValue)
+            '                End If
+            '            End With
+            '        End If
+            '    End Using
+            'End If
+        End Function
         Private Function GetTimelineGQL(ByVal Cursor As String, ByVal Token As CancellationToken) As String
             Const none_cursor$ = "none"
-            Dim nextCursor$ = String.Empty, hasNextPage$ = String.Empty
+            Dim nextCursor$ = String.Empty
+            Dim hasNextPage As Boolean = False
             Dim vars$
 
             ThrowAny(Token)
@@ -98,14 +108,18 @@ Namespace API.Instagram
             ChangeResponserMode(True)
 
             If Cursor.IsEmptyString Then
-                vars = "{""data"":{""count"":50,""include_relationship_info"":true,""latest_besties_reel_media"":true,""latest_reel_media"":true},""username"":""" &
+                vars = "{""data"":{""count"":" & PostNumberPerRequest & ",""include_relationship_info"":true,""latest_besties_reel_media"":true,""latest_reel_media"":true},""username"":""" &
                         NameTrue & """,""__relay_internal__pv__PolarisShareMenurelayprovider"":false}"
+                'vars = "{""data"":{""count"":" & PostNumberPerRequest & ",""include_reel_media_seen_timestamp"":true,""include_relationship_info"":true,""latest_besties_reel_media"":true,""latest_reel_media"":true},""username"":""" &
+                '        NameTrue & """,""__relay_internal__pv__PolarisShareMenurelayprovider"":false}"
                 vars = String.Format(GQL_URL_PATTERN_VARS, GQL_Timeline_DocId, Token_lsd, Token_dtsg_Var, GQL_Timeline_FbFriendlyName,
                                      SymbolsConverter.ASCII.EncodeSymbolsOnly(vars))
                 UpdateHeadersGQL(GQL_Timeline_FbFriendlyName)
             Else
-                vars = "{""after"":""" & Cursor & """,""before"":null,""data"":{""count"":50,""include_relationship_info"":true,""latest_besties_reel_media"":true,""latest_reel_media"":true},""first"":50,""last"":null,""username"":""" &
+                vars = "{""after"":""" & Cursor & """,""before"":null,""data"":{""count"":" & PostNumberPerRequest & ",""include_relationship_info"":true,""latest_besties_reel_media"":true,""latest_reel_media"":true},""first"":" & PostNumberPerRequest & ",""last"":null,""username"":""" &
                         NameTrue & """,""__relay_internal__pv__PolarisShareMenurelayprovider"":false}"
+                'vars = "{""after"":""" & Cursor & """,""before"":null,""data"":{""count"":" & PostNumberPerRequest & ",""include_reel_media_seen_timestamp"":true,""include_relationship_info"":true,""latest_besties_reel_media"":true,""latest_reel_media"":true},""first"":" & PostNumberPerRequest & ",""last"":null,""username"":""" &
+                '        NameTrue & """}"
                 vars = String.Format(GQL_URL_PATTERN_VARS, GQL_Timeline_DocId_Second, Token_lsd, Token_dtsg_Var, GQL_Timeline_FbFriendlyName_Second,
                                      SymbolsConverter.ASCII.EncodeSymbolsOnly(vars))
                 UpdateHeadersGQL(GQL_Timeline_FbFriendlyName_Second)
@@ -140,7 +154,8 @@ Namespace API.Instagram
         End Function
         Private Function GetHighlightsGQL_List() As List(Of String)
 
-            Dim nextCursor$ = String.Empty, hasNextPage$ = String.Empty
+            Dim nextCursor$ = String.Empty
+            Dim hasNextPage As Boolean = False
             Dim i% = -1
             Dim hList As New List(Of String)
             Dim tmpList As New List(Of String)
@@ -178,7 +193,9 @@ Namespace API.Instagram
             Dim tmpList As New List(Of String)
             Dim i% = -1
             If StoriesList.ListExists Then
-                tmpList.AddRange(StoriesList.Take(10))
+                'TODO: 5 Instagram stories
+                'tmpList.AddRange(StoriesList.Take(10))
+                tmpList.AddRange(StoriesList.Take(5))
                 StoriesList.RemoveRange(0, tmpList.Count)
 
                 Dim vars$ = String.Format(GQL_URL_PATTERN_VARS, GQL_Highlights_DocId_Second, Token_lsd, Token_dtsg_Var, GQL_Highlights_FbFriendlyName_Second,
@@ -238,11 +255,9 @@ Namespace API.Instagram
         Private Function GetReelsGQL(ByVal Cursor As String) As String
             GetReelsGQL_SetEnvir = True
 
-            Dim errData$ = String.Empty
-            If Cursor.IsEmptyString And Not ValidateBaseTokens() Then GetPageTokens()
-            If Cursor.IsEmptyString And Not ValidateBaseTokens(errData) Then ValidateBaseTokens_Error(errData)
+            UpdateTokens(Cursor.IsEmptyString)
 
-            Dim vars$ = """data"":{""include_feed_video"":true,""page_size"":50,""target_user_id"":""" & ID & """}"
+            Dim vars$ = """data"":{""include_feed_video"":true,""page_size"":" & PostNumberPerRequest & ",""target_user_id"":""" & ID & """}"
             If Not Cursor.IsEmptyString Then vars = $"""after"":""{Cursor}"",""before"":null,{vars},""first"":4,""last"":null"
             vars = String.Format(GQL_URL_PATTERN_VARS, GQL_Reels_DocId, Token_lsd, Token_dtsg_Var, GQL_Reels_FbFriendlyName,
                                  SymbolsConverter.ASCII.EncodeSymbolsOnly("{" & vars & "}"))
@@ -258,10 +273,10 @@ Namespace API.Instagram
             Dim vars$
             If Cursor.IsEmptyString Then
                 vars = String.Format(GQL_URL_PATTERN_VARS, GQL_Tagged_DocId, Token_lsd, Token_dtsg_Var, GQL_Tagged_FbFriendlyName,
-                                     SymbolsConverter.ASCII.EncodeSymbolsOnly("{" & $"""count"":50,""user_id"":""{ID}""" & "}"))
+                                     SymbolsConverter.ASCII.EncodeSymbolsOnly("{" & $"""count"":{PostNumberPerRequest},""user_id"":""{ID}""" & "}"))
             Else
                 vars = String.Format(GQL_URL_PATTERN_VARS, GQL_Tagged_DocId, Token_lsd, Token_dtsg_Var, GQL_Tagged_FbFriendlyName,
-                                     SymbolsConverter.ASCII.EncodeSymbolsOnly("{" & $"""after"":""{Cursor}"",""before"":null,""count"":50,""first"":50,""last"":null,""user_id"":""{ID}""" & "}"))
+                                     SymbolsConverter.ASCII.EncodeSymbolsOnly("{" & $"""after"":""{Cursor}"",""before"":null,""count"":{PostNumberPerRequest},""first"":{PostNumberPerRequest},""last"":null,""user_id"":""{ID}""" & "}"))
             End If
             UpdateRequestNumber()
             ChangeResponserMode(True)
@@ -270,6 +285,13 @@ Namespace API.Instagram
         End Function
 #End Region
 #Region "ValidateBaseTokens"
+        Private Sub UpdateTokens(ByVal process As Boolean)
+            If process Then
+                Dim TokensErrData$ = String.Empty
+                If Not ValidateBaseTokens() Then GetPageTokens()
+                If Not ValidateBaseTokens(TokensErrData) Then ValidateBaseTokens_Error(TokensErrData)
+            End If
+        End Sub
         Protected Overridable Overloads Function ValidateBaseTokens() As Boolean
             Return ValidateBaseTokens(Nothing)
         End Function
@@ -307,6 +329,10 @@ Namespace API.Instagram
             Try
                 If Not r.IsEmptyString Then
                     ResetBaseTokens()
+                    If ID.IsEmptyString Then
+                        Dim __id$ = RegexReplace(r, Regex_ProfileID)
+                        If CLng(AConvert(Of Long)(__id, 0, EDP.ReturnValue)) <> 0 Then ID = __id
+                    End If
                     Select Case Attempt
                         Case 0
                             Dim rr As RParams = RParams.DM(PageTokenRegexPatternDefault, 0, RegexReturn.List, EDP.ReturnValue)

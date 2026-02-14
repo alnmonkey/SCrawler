@@ -744,12 +744,13 @@ Namespace API.Xhamster
                 If IsSingleObjectDownload Then
                     cc = Settings.Cache
                 Else
-                    If MyCache Is Nothing Then MyCache = CreateCache() : MyCache.Validate()
+                    If MyCache Is Nothing Then MyCache = CreateCache()
                     cc = MyCache
                 End If
+                cc.Validate()
                 Dim path As SFile = cc.NewPath
                 Dim c$ = If(MySettings.CookiesNetscapeFile.Exists, $" --no-cookies-from-browser --cookies ""{MySettings.CookiesNetscapeFile}""", String.Empty)
-                Dim cmd$ = $"{Settings.YtdlpFile} --write-info-json --skip-download{c} {URL} -o ""{path.PathWithSeparator}file"""
+                Dim cmd$ = $"""{Settings.YtdlpFile}"" --write-info-json --skip-download{c} {URL} -o ""{path.PathWithSeparator}file"""
                 path.Exists()
                 Using ytdlp As New YTDLP.YTDLPBatch(TokenPersonal,, path) : ytdlp.Encoding = Settings.CMDEncoding : ytdlp.Execute(cmd) : End Using
                 Return SFile.GetFiles(path, "*.json",, EDP.ReturnValue).FirstOrDefault
@@ -794,7 +795,7 @@ Namespace API.Xhamster
         Private Function YTDLPDownload(ByVal Media As UserMedia, ByVal DestinationFile As SFile, ByVal Token As CancellationToken) As SFile
             DestinationFile.Extension = "mp4"
             Dim c$ = If(MySettings.CookiesNetscapeFile.Exists, $" --no-cookies-from-browser --cookies ""{MySettings.CookiesNetscapeFile}""", String.Empty)
-            Dim cmd$ = $"{Settings.YtdlpFile} --format {DirectCast(Media.Object, XMMediaInfo).FormatID}{c} {Media.URL_BASE} -o ""{DestinationFile}"""
+            Dim cmd$ = $"""{Settings.YtdlpFile}"" --format {DirectCast(Media.Object, XMMediaInfo).FormatID}{c} {Media.URL_BASE} -o ""{DestinationFile}"""
             Using ytdlp As New YTDLP.YTDLPBatch(TokenPersonal,, DestinationFile) : ytdlp.Encoding = Settings.CMDEncoding : ytdlp.Execute(cmd) : End Using
             Return DestinationFile
         End Function

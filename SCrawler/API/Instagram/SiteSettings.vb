@@ -148,6 +148,8 @@ Namespace API.Instagram
 #End Region
         <PropertyOption(ControlText:="Use GraphQL to download", IsAuth:=True), PXML, PClonable>
         Friend ReadOnly Property USE_GQL As PropertyValue
+        <PropertyOption(ControlText:="Use GraphQL to download user data", IsAuth:=True), PXML, PClonable, HiddenControl>
+        Friend ReadOnly Property USE_GQL_UserData As PropertyValue
 #End Region
 #Region "Download data"
         <PropertyOption(ControlText:="Download timeline", Category:=CAT_DOWN), PXML, PClonable>
@@ -165,6 +167,14 @@ Namespace API.Instagram
         <PropertyOption(ControlText:="Download tagged posts", Category:=CAT_DOWN), PXML, PClonable>
         Friend ReadOnly Property DownloadTagged As PropertyValue
         <PXML> Private ReadOnly Property DownloadTagged_Def As PropertyValue
+        <PropertyOption(ControlText:="Number of posts (verified)", ControlToolTip:="The number of posts received per request if the profile has a verified mark", Category:=CAT_DOWN), PXML, PClonable, HiddenControl>
+        Friend ReadOnly Property PostNumberVerified As PropertyValue
+        <Provider(NameOf(PostNumberVerified), FieldsChecker:=True)>
+        Private ReadOnly Property PostNumberVerifiedProvider As IFormatProvider
+        <PropertyOption(ControlText:="Number of posts (unverified)", ControlToolTip:="The number of posts received per request if the profile doesn't have a verified mark", Category:=CAT_DOWN), PXML, PClonable, HiddenControl>
+        Friend ReadOnly Property PostNumberVerifiedNot As PropertyValue
+        <Provider(NameOf(PostNumberVerifiedNot), FieldsChecker:=True)>
+        Private ReadOnly Property PostNumberVerifiedNotProvider As IFormatProvider
 #End Region
 #Region "Timers"
         Friend Const TimersUrgentTip As String = vbCr & "It is highly recommended not to change the default value."
@@ -485,6 +495,7 @@ Namespace API.Instagram
             HH_IG_WWW_CLAIM_USE_DEFAULT_ALGO = New PropertyValue(True)
             TokenUpdateIntervalProvider = New TokenRefreshIntervalProvider
             USE_GQL = New PropertyValue(False)
+            USE_GQL_UserData = New PropertyValue(True)
 
             DownloadTimeline = New PropertyValue(True)
             DownloadTimeline_Def = New PropertyValue(DownloadTimeline.Value, GetType(Boolean))
@@ -496,6 +507,10 @@ Namespace API.Instagram
             DownloadStoriesUser_Def = New PropertyValue(DownloadStoriesUser.Value, GetType(Boolean))
             DownloadTagged = New PropertyValue(False)
             DownloadTagged_Def = New PropertyValue(DownloadTagged.Value, GetType(Boolean))
+            PostNumberVerified = New PropertyValue(50)
+            PostNumberVerifiedProvider = New TimersChecker(12)
+            PostNumberVerifiedNot = New PropertyValue(12)
+            PostNumberVerifiedNotProvider = New TimersChecker(12)
 
             RequestsWaitTimer_Any = New PropertyValue(1000)
             RequestsWaitTimer_AnyProvider = New TimersChecker(0)

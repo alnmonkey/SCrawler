@@ -99,42 +99,50 @@ Namespace DownloadObjects
         End Sub
         Private Sub FeedRemoveCheckedMedia(ByVal MediaList As IEnumerable(Of UserMediaD), Optional ByVal OverriddenNames As List(Of String) = Nothing,
                                            Optional ByVal RemoveChecked As Boolean = True, Optional ByVal ExcludingNames As IEnumerable(Of String) = Nothing,
-                                           Optional ByVal RemoveFromDataListOnly As Boolean = False)
+                                           Optional ByVal IsAddAndRemove As Boolean = False)
             Try
-                If FeedMode = FeedModes.Special Then
-                    If LoadedFeedNames.Count > 0 Then
-                        Dim dataRemoved As Boolean = False
-                        If OverriddenNames.ListExists And Not LoadedFeedNames.ListContains(OverriddenNames) Then Exit Sub
-                        If Not RemoveFromDataListOnly Then
-                            Dim eNames As IEnumerable(Of String) = If(ExcludingNames, New String() {})
-                            With If(OverriddenNames, LoadedFeedNames)
-                                .ForEach(Sub(ByVal feedName As String)
-                                             If Not eNames.Contains(feedName) Then
-                                                 Dim indx% = Settings.Feeds.IndexOf(feedName)
-                                                 If indx >= 0 Then
-                                                     If Settings.Feeds(indx).Remove(MediaList) > 0 Then dataRemoved = True
-                                                 End If
-                                             End If
-                                         End Sub)
-                            End With
-                        End If
-                        If RemoveFromDataListOnly Then
+                If FeedMode = FeedModes.Saved Then Exit Sub
+
+                Dim dataRemoved As Boolean = False
+                If FeedMode = FeedModes.Special And OverriddenNames.ListExists And Not LoadedFeedNames.ListContains(OverriddenNames) Then Exit Sub
+                Dim eNames As IEnumerable(Of String) = If(ExcludingNames, New String() {})
+                With If(OverriddenNames, LoadedFeedNames)
+                    If FeedMode = FeedModes.Special And .ListExists Then
+                        .ForEach(Sub(ByVal feedName As String)
+                                     If Not eNames.Contains(feedName) Then
+                                         Dim indx% = Settings.Feeds.IndexOf(feedName)
+                                         If indx >= 0 Then
+                                             If Settings.Feeds(indx).Remove(MediaList) > 0 Then dataRemoved = True
+                                         End If
+                                     End If
+                                 End Sub)
+                    ElseIf FeedMode = FeedModes.Current And Not OverriddenNames.ListExists And IsAddAndRemove Then
+                        dataRemoved = Downloader.Files.ListDisposeRemove(MediaList) > 0
+                        'Downloader.FilesSave()
+                    Else
+                        Exit Sub
+                    End If
+                End With
+
+                If dataRemoved Then DataList.ListDisposeRemove(MediaList)
+
+                Select Case FeedMode
+                    Case FeedModes.Special
+                        If RemoveChecked And IsAddAndRemove Then
+                            If RemoveCheckedMedia(False) Then RefillAfterDelete()
+                        Else
                             RefillSpecialFeedsData()
-                        ElseIf dataRemoved Then
-                            DataList.ListDisposeRemove(MediaList)
+                        End If
+                    Case FeedModes.Current
+                        If dataRemoved Then
                             If RemoveChecked Then
-                                If RemoveCheckedMedia(False) Then RefillAfterDelete()
+                                RemoveCheckedMedia(False)
+                                RefillAfterDelete()
                             Else
-                                RefillSpecialFeedsData()
+                                RefillList()
                             End If
                         End If
-                    End If
-                ElseIf FeedMode = FeedModes.Current Then
-                    If OverriddenNames Is Nothing AndAlso Downloader.Files.ListDisposeRemove(MediaList) > 0 AndAlso RemoveCheckedMedia(False) Then
-                        DataList.ListDisposeRemove(MediaList)
-                        RefillAfterDelete()
-                    End If
-                End If
+                End Select
             Catch ex As Exception
                 ErrorsDescriber.Execute(EDP.SendToLog, ex, "[DownloadFeedForm.FeedRemoveCheckedMedia]")
             End Try
@@ -333,7 +341,7 @@ Namespace DownloadObjects
                 Dim c As IEnumerable(Of UserMediaD) = GetCheckedMedia()
                 If c.ListExists Then
                     f.Add(c)
-                    FeedRemoveCheckedMedia(c,,, {f.Name})
+                    FeedRemoveCheckedMedia(c,,, {f.Name}, True)
                 End If
             End If
         End Sub
@@ -352,7 +360,7 @@ Namespace DownloadObjects
                 Dim m As IEnumerable(Of UserMediaD) = GetCheckedMedia()
                 If m.ListExists Then
                     f.Remove(m)
-                    FeedRemoveCheckedMedia(m, {f.Name}.ToList)
+                    FeedRemoveCheckedMedia(m, {f.Name}.ToList,,, False)
                 End If
             End If
         End Sub
@@ -1000,14 +1008,14 @@ Namespace DownloadObjects
             Dim m As IEnumerable(Of UserMediaD) = GetCheckedMedia()
             If m.ListExists Then
                 Settings.Feeds.Favorite.Add(m)
-                If sender Is BTT_FEED_ADD_FAV_REMOVE Then FeedRemoveCheckedMedia(m,,, {FeedSpecial.FavoriteName})
+                If sender Is BTT_FEED_ADD_FAV_REMOVE Then FeedRemoveCheckedMedia(m,,, {FeedSpecial.FavoriteName}, True)
             End If
         End Sub
         Private Sub BTT_FEED_REMOVE_FAV_Click(sender As Object, e As EventArgs) Handles BTT_FEED_REMOVE_FAV.Click
             Dim m As IEnumerable(Of UserMediaD) = GetCheckedMedia()
             If m.ListExists Then
                 Settings.Feeds.Favorite.Remove(m)
-                If FeedMode = FeedModes.Special Then FeedRemoveCheckedMedia(m, {FeedSpecial.FavoriteName}.ToList)
+                If FeedMode = FeedModes.Special Then FeedRemoveCheckedMedia(m, {FeedSpecial.FavoriteName}.ToList,,, False)
             End If
         End Sub
         Private Sub BTT_FEED_ADD_SPEC_Click(sender As Object, e As EventArgs) Handles BTT_FEED_ADD_SPEC.Click, BTT_FEED_ADD_SPEC_REMOVE.Click
@@ -1020,7 +1028,7 @@ Namespace DownloadObjects
                                                      f.Add(c)
                                                  End Sub)
                 End With
-                If sender Is BTT_FEED_ADD_SPEC_REMOVE Then FeedRemoveCheckedMedia(c,,, names)
+                If sender Is BTT_FEED_ADD_SPEC_REMOVE Then FeedRemoveCheckedMedia(c,,, names, True)
                 names.Clear()
             Else
                 MsgBoxE({"You haven't selected media to add to your feed(s)", "Add to feed(s)"}, vbExclamation)
@@ -1036,7 +1044,7 @@ Namespace DownloadObjects
                                                      f.Remove(c)
                                                  End Sub)
                 End With
-                If FeedMode = FeedModes.Special Then FeedRemoveCheckedMedia(c, names)
+                If FeedMode = FeedModes.Special Then FeedRemoveCheckedMedia(c, names,,, False)
             Else
                 MsgBoxE({"You haven't selected media to remove from your feed(s)", "Remove from feed(s)"}, vbExclamation)
             End If
@@ -1408,8 +1416,10 @@ Namespace DownloadObjects
                 ErrorsDescriber.Execute(EDP.LogMessageValue, ex, "Download subscription media")
             End Try
         End Sub
-        Private Sub FeedMedia_FeedAddWithRemove(ByVal Sender As FeedMedia, ByVal Feeds As IEnumerable(Of String), ByVal Media As UserMediaD, ByVal RemoveOperation As Boolean)
-            FeedRemoveCheckedMedia({Media},, False, Feeds, RemoveOperation)
+        Private Sub FeedMedia_FeedRemoveCheckedMedia(ByVal Sender As FeedMedia, ByVal Media As UserMediaD, ByVal Names As IEnumerable(Of String),
+                                                     ByVal IsOverriddenNames As Boolean, ByVal IsAddAndRemove As Boolean)
+            FeedRemoveCheckedMedia({Media}, CObj(If(IsOverriddenNames, Names.ListIfNothing, Nothing)), False,
+                                   CObj(If(IsOverriddenNames, Nothing, Names)), IsAddAndRemove)
         End Sub
 #End Region
 #Region "Delete / Remove"
@@ -1616,7 +1626,7 @@ Namespace DownloadObjects
                                                   AddHandler .MediaDownload, AddressOf FeedMedia_Download
                                                   AddHandler .MediaMove, AddressOf FeedMedia_MediaMove
                                                   AddHandler .MediaCopy, AddressOf FeedMedia_MediaCopy
-                                                  AddHandler .FeedAddWithRemove, AddressOf FeedMedia_FeedAddWithRemove
+                                                  AddHandler .FeedRemoveCheckedMedia, AddressOf FeedMedia_FeedRemoveCheckedMedia
                                               End With
                                               If de.Data.Type = UTypes.Text OrElse de.Data.PostTextFile.IsEmptyString Then Exit For
                                           Next

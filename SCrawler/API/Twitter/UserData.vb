@@ -297,10 +297,17 @@ Namespace API.Twitter
         Private Const DEBUG_PROFILE As Boolean = False
         Private Const DEBUG_LEAVE_CACHE As Boolean = False
         Private JsonNullErr As Boolean = False
+        Private ____UserExists As Boolean = True
+        Private NotUserExistsAttempts As Integer = 0
+        Friend Overrides Sub DownloadData(ByVal Token As CancellationToken)
+            ____UserExists = UserExists
+            MyBase.DownloadData(Token)
+        End Sub
         Protected Overrides Sub DownloadDataF(ByVal Token As CancellationToken)
             Try
                 GDL_REQUESTS_COUNT = 0
                 JsonNullErr = False
+                NotUserExistsAttempts = 0
                 If MySettings.LIMIT_ABORT Then
                     Throw New TwitterLimitException(Me)
                 Else
@@ -317,6 +324,14 @@ Namespace API.Twitter
                         End If
                         LikesPosts.Clear()
                         If _ContentList.Count > 0 Then _DataNames.ListAddList(_ContentList.Select(Function(c) c.File.File), LAP.ClearBeforeAdd, LAP.NotContainsOnly)
+                        If Not ____UserExists Then
+                            For i% = 0 To 1
+                                NotUserExistsAttempts += 1
+                                DownloadData_Timeline(Token)
+                                If UserExists Then ____UserExists = True : Exit For
+                            Next
+                        End If
+                        If Not UserExists Then Exit Sub
                         DownloadData_Timeline(Token)
                         If _TempMediaList.Count = 0 And LikesPosts.Count = 0 And JsonNullErr Then Throw New Plugin.ExitException("No deserialized data found")
                         LoadSavePostsKV(False)
@@ -366,6 +381,7 @@ Namespace API.Twitter
                 Dim j As EContainer, rootNode As EContainer, optionalNode As EContainer, workingNode As EContainer, tmpNode As EContainer, nn As EContainer = Nothing
                 Dim multiMode As Boolean = IsMultiMode
                 Dim currentModel As DownloadModels = DownloadModels.Undefined
+                Dim onlyUpdateUser As Boolean = Not ____UserExists
 
                 Dim __parseContainer As Func(Of EContainer, Boolean) =
                     Function(ByVal ee As EContainer) As Boolean
@@ -478,6 +494,7 @@ Namespace API.Twitter
                                 End If
                                 'parse files
                                 For i = 0 To timelineFiles.Count - 1
+                                    If userInfoParsed And onlyUpdateUser Then Exit Sub
                                     j = JsonDocument.Parse(timelineFiles(i).GetText, jsonArgs)
                                     If jsonArgs.State = WebDocumentEventArgs.States.Error Then
                                         jsonArgs.Reset(Token)
@@ -530,6 +547,14 @@ Namespace API.Twitter
                                                             Dim tScreenName$ = .Value({"core"}, "screen_name")
                                                             With .Item({"legacy"})
                                                                 If .ListExists Then
+                                                                    If onlyUpdateUser Then
+                                                                        If Not NameTrue = tScreenName Or 1 = 1 Then
+                                                                            Dim uStr$ = $"username changed from '{NameTrue}' to '{tScreenName}'"
+                                                                            LogError(Nothing, uStr)
+                                                                            UserDescriptionUpdate(uStr, True, True, True)
+                                                                        End If
+                                                                        NameTrue = tScreenName
+                                                                    End If
                                                                     If .Value("screen_name").IfNullOrEmpty(tScreenName).StringToLower = NameTrue.ToLower Then
                                                                         UserSiteNameUpdate(.Value("name"))
                                                                         UserDescriptionUpdate(.Value("description"))
@@ -846,6 +871,23 @@ nextpIndx:
         Private Class TwitterGDL : Inherits GDL.GDLBatch
             Private ReadOnly KillOnLimit As Boolean
             Friend LimitReached As Boolean = False
+            Private _GetOnlyUserInfo As Boolean = False
+            Friend Overrides Property MyWorkingDirectory As SFile
+                Get
+                    Return If(MyBase.MyWorkingDirectory.IsEmptyString, If(FileExchanger?.RootDirectory, MyBase.MyWorkingDirectory), MyBase.MyWorkingDirectory)
+                End Get
+                Set(ByVal dir As SFile)
+                    MyBase.MyWorkingDirectory = dir
+                End Set
+            End Property
+            Friend Property GetOnlyUserInfo As Boolean
+                Get
+                    Return _GetOnlyUserInfo And Not MyWorkingDirectory.IsEmptyString
+                End Get
+                Set(ByVal __GetOnlyUserInfo As Boolean)
+                    _GetOnlyUserInfo = __GetOnlyUserInfo
+                End Set
+            End Property
             Friend Sub New(ByVal Dir As SFile, ByVal _Token As CancellationToken, ByVal _KillOnLimit As Boolean)
                 MyBase.New(_Token,, Dir)
                 KillOnLimit = _KillOnLimit
@@ -855,10 +897,14 @@ nextpIndx:
             End Function
             Private Function IdExists(ByVal Value As String) As Boolean
                 Try
-                    Value = Value.StringTrim
-                    If Not Value.IsEmptyString AndAlso (Value.StartsWith("*") Or Value.StartsWith(".\gallery-dl\")) Then
-                        Dim id$ = Value.Split("\").Last.Split(".").First.Split("_").First
-                        If Not id.IsEmptyString Then Return TempPostsList.Contains(id)
+                    If GetOnlyUserInfo Then
+                        Return CheckForData()
+                    Else
+                        Value = Value.StringTrim
+                        If Not Value.IsEmptyString AndAlso (Value.StartsWith("*") Or Value.StartsWith(".\gallery-dl\")) Then
+                            Dim id$ = Value.Split("\").Last.Split(".").First.Split("_").First
+                            If Not id.IsEmptyString Then Return TempPostsList.Contains(id)
+                        End If
                     End If
                 Catch ex As Exception
                 End Try
@@ -867,8 +913,14 @@ nextpIndx:
             Protected Overrides Async Sub ErrorDataReceiver(ByVal Sender As Object, ByVal e As DataReceivedEventArgs)
                 Await Task.Run(Sub() CheckForLimit(e.Data))
             End Sub
+            Private Function CheckForData()
+                If GetOnlyUserInfo Then
+                    If SFile.GetFiles(MyWorkingDirectory, "*.txt",, EDP.ReturnValue).Count > 2 Then Return True
+                End If
+                Return False
+            End Function
             Private Sub CheckForLimit(ByVal Value As String)
-                If Token.IsCancellationRequested Or (KillOnLimit AndAlso Not ProcessKilled AndAlso
+                If CheckForData() Or Token.IsCancellationRequested Or (KillOnLimit AndAlso Not ProcessKilled AndAlso
                    Not Value.IsEmptyString AndAlso (Value.ToLower.Contains("for rate limit reset") OrElse
                                                     Not CStr(RegexReplace(Value, GdlLimitRegEx)).IsEmptyString)) Then
                     LimitReached = True
@@ -1017,11 +1069,12 @@ nextpIndx:
                     .AutoClear = True,
                     .AutoReset = True,
                     .CommandPermanent = $"chcp {BatchExecutor.UnicodeEncoding}",
-                    .FileExchanger = confCache
+                    .FileExchanger = confCache,
+                    .GetOnlyUserInfo = NotUserExistsAttempts > 0
                 }
                     tgdl.FileExchanger.DeleteCacheOnDispose = False
                     tgdl.FileExchanger.DeleteRootOnDispose = False
-                    For i As Byte = 0 To IIf(IsCommunity, 0, 3)
+                    For i As Byte = 0 To IIf(IsCommunity Or NotUserExistsAttempts > 0, 0, 3)
                         dir = rootDir.NewPath
                         dir.Exists(SFO.Path, True, EDP.ThrowException)
                         outList.Add(dir)
@@ -1032,13 +1085,28 @@ nextpIndx:
                         Else
                             command &= GdlGetIdFilterString()
                         End If
-                        Select Case i
-                            Case 0 : command &= $"{urlPrePattern}{NameTrue}/media" : currentModel = DownloadModels.Media : process = dm.Contains(currentModel) Or IsCommunity
-                            Case 1 : command &= $"{urlPrePattern}{NameTrue}" : currentModel = DownloadModels.Profile : process = dm.Contains(currentModel)
-                            Case 2 : command &= $"-o search-endpoint=graphql https://x.com/search?q=from:{NameTrue}+include:nativeretweets" : currentModel = DownloadModels.Search : process = dm.Contains(currentModel) And Not IsCommunity
-                            Case 3 : command &= $"{urlPrePattern}{NameTrue}/likes" : currentModel = DownloadModels.Likes : process = dm.Contains(currentModel)
-                            Case Else : process = False
-                        End Select
+                        If NotUserExistsAttempts > 0 Then
+                            Select Case NotUserExistsAttempts
+                                Case 1 : command &= $"{urlPrePattern}{NameTrue}/media" : currentModel = DownloadModels.Media : process = True
+                                Case 2
+                                    If ID.IsEmptyString Then
+                                        process = False
+                                    Else
+                                        command &= $"https://twitter.com/intent/user?user_id={ID}"
+                                        currentModel = DownloadModels.Media
+                                        process = True
+                                    End If
+                                Case Else : process = False
+                            End Select
+                        Else
+                            Select Case i
+                                Case 0 : command &= $"{urlPrePattern}{NameTrue}/media" : currentModel = DownloadModels.Media : process = dm.Contains(currentModel) Or IsCommunity
+                                Case 1 : command &= $"{urlPrePattern}{NameTrue}" : currentModel = DownloadModels.Profile : process = dm.Contains(currentModel)
+                                Case 2 : command &= $"-o search-endpoint=graphql https://x.com/search?q=from:{NameTrue}+include:nativeretweets" : currentModel = DownloadModels.Search : process = dm.Contains(currentModel) And Not IsCommunity
+                                Case 3 : command &= $"{urlPrePattern}{NameTrue}/likes" : currentModel = DownloadModels.Likes : process = dm.Contains(currentModel)
+                                Case Else : process = False
+                            End Select
+                        End If
                         '#If DEBUG Then
                         'Debug.WriteLine(command)
                         '#End If

@@ -39,6 +39,8 @@ Namespace API.Instagram
         Private Const Name_TaggedChecked As String = "TaggedChecked"
         Private Const Name_ForceUpdateUserName As String = "ForceUpdateUserName"
         Private Const Name_ForceUpdateUserInfo As String = "ForceUpdateUserInfo"
+        Private Const Name_IsVerifiedProfile As String = "IsVerifiedProfile"
+        Private Const Name_IsVerifiedProfile_Checked As String = "IsVerifiedProfile_Checked"
 #End Region
 #Region "Declarations"
         Friend Structure PostKV : Implements IEContainerProvider
@@ -115,6 +117,13 @@ Namespace API.Instagram
         Private UserNameRequested As Boolean = False
         Friend Property ForceUpdateUserName As Boolean = False
         Friend Property ForceUpdateUserInfo As Boolean = False
+        Friend Property IsVerifiedProfile As Boolean = False
+        Friend Property IsVerifiedProfile_Checked As Boolean = False
+        Private ReadOnly Property PostNumberPerRequest As Integer
+            Get
+                With MySiteSettings : Return If(IsVerifiedProfile, .PostNumberVerified, .PostNumberVerifiedNot).Value : End With
+            End Get
+        End Property
 #End Region
 #Region "Loader"
         Protected Overrides Sub LoadUserInformation_OptionalFields(ByRef Container As XmlFile, ByVal Loading As Boolean)
@@ -136,6 +145,8 @@ Namespace API.Instagram
                     TaggedChecked = .Value(Name_TaggedChecked).FromXML(Of Boolean)(False)
                     ForceUpdateUserName = .Value(Name_ForceUpdateUserName).FromXML(Of Boolean)(False)
                     ForceUpdateUserInfo = .Value(Name_ForceUpdateUserInfo).FromXML(Of Boolean)(False)
+                    IsVerifiedProfile = .Value(Name_IsVerifiedProfile).FromXML(Of Boolean)(False)
+                    IsVerifiedProfile_Checked = .Value(Name_IsVerifiedProfile_Checked).FromXML(Of Boolean)(False)
                 Else
                     .Add(Name_LastCursor, LastCursor)
                     .Add(Name_FirstLoadingDone, FirstLoadingDone.BoolToInteger)
@@ -153,6 +164,8 @@ Namespace API.Instagram
                     .Add(Name_TaggedChecked, TaggedChecked.BoolToInteger)
                     .Add(Name_ForceUpdateUserName, ForceUpdateUserName.BoolToInteger)
                     .Add(Name_ForceUpdateUserInfo, ForceUpdateUserInfo.BoolToInteger)
+                    .Add(Name_IsVerifiedProfile, IsVerifiedProfile.BoolToInteger)
+                    .Add(Name_IsVerifiedProfile_Checked, IsVerifiedProfile_Checked.BoolToInteger)
                 End If
             End With
         End Sub
@@ -178,6 +191,9 @@ Namespace API.Instagram
                     GetTaggedData_VideoPic = .GetTagged_VideoPic
 
                     PutImageVideoFolder = .PutImageVideoFolder
+
+                    IsVerifiedProfile = .IsVerifiedProfile
+                    If IsVerifiedProfile Then IsVerifiedProfile_Checked = True
 
                     ForceUpdateUserName = .ForceUpdateUserName
                     ForceUpdateUserInfo = .ForceUpdateUserInfo
@@ -663,6 +679,7 @@ Namespace API.Instagram
             Dim StoriesList As List(Of String) = Nothing
             Dim StoriesRequested As Boolean = False
             Dim dValue% = 1
+            Dim __idIsEmpty As Boolean = ID.IsEmptyString
             LastCursor = Cursor
             Try
                 Do While dValue = 1
@@ -676,7 +693,6 @@ Namespace API.Instagram
                         Dim HasNextPage As Boolean = False
                         Dim EndCursor$ = String.Empty
                         Dim PostID$ = String.Empty, PostDate$ = String.Empty, SpecFolder$ = String.Empty
-                        Dim TokensErrData$ = String.Empty
                         Dim PostIDKV As PostKV
                         Dim ENode() As Object = Nothing
                         Dim processGetResponse As Boolean = True
@@ -684,14 +700,11 @@ Namespace API.Instagram
 
                         'Check environment
                         If Not IsSavedPosts Then
-                            If ID.IsEmptyString Then GetUserData()
+                            If _UseGQL And Cursor.IsEmptyString And Not Section = Sections.SavedPosts Then UpdateTokens(True)
+                            If ID.IsEmptyString Or __idIsEmpty Or Not IsVerifiedProfile_Checked Then GetUserData(Token)
                             If ID.IsEmptyString Then UserExists = False : _ForceSaveUserInfoOnException = True : Throw New Plugin.ExitException("can't get user ID")
-                            If _UseGQL And Cursor.IsEmptyString And Not Section = Sections.SavedPosts Then
-                                If Not ValidateBaseTokens() Then GetPageTokens()
-                                If Not ValidateBaseTokens(TokensErrData) Then ValidateBaseTokens_Error(TokensErrData)
-                            End If
                             If ForceUpdateUserName Then GetUserNameById()
-                            If ForceUpdateUserInfo Then GetUserData()
+                            If ForceUpdateUserInfo Then GetUserData(Token)
                         End If
 
                         'Create query
@@ -703,7 +716,7 @@ Namespace API.Instagram
                                     MySiteSettings.TooManyRequests(False)
                                     GoTo NextPageBlock
                                 Else
-                                    URL = $"https://www.instagram.com/api/v1/feed/user/{NameTrue}/username/?count=50" &
+                                    URL = $"https://www.instagram.com/api/v1/feed/user/{NameTrue}/username/?count={PostNumberPerRequest}" &
                                            If(Cursor.IsEmptyString, String.Empty, $"&max_id={Cursor}")
                                     ENode = Nothing
                                 End If
@@ -726,7 +739,7 @@ Namespace API.Instagram
                                     ENode = {"data", "xdt_api__v1__usertags__user_id__feed_connection"}
                                     processGetResponse = False
                                 Else
-                                    Dim vars$ = "{""id"":" & ID & ",""first"":50,""after"":""" & Cursor & """}"
+                                    Dim vars$ = "{""id"":" & ID & $",""first"":{PostNumberPerRequest},""after"":""" & Cursor & """}"
                                     vars = SymbolsConverter.ASCII.EncodeSymbolsOnly(vars)
                                     URL = $"https://www.instagram.com/graphql/query/?doc_id=17946422347485809&variables={vars}"
                                     ENode = {"data", "user", "edge_user_to_photos_of_you"}
@@ -1241,25 +1254,37 @@ NextPageBlock:
         End Sub
 #End Region
 #Region "GetUserId, GetUserName"
-        Private Sub GetUserData()
+        Private Sub GetUserData(ByVal Token As CancellationToken)
             Dim __idFound As Boolean = False
             If ForceUpdateUserInfo Then ForceUpdateUserInfo = False : _ForceSaveUserInfo = True
             Try
-                ChangeResponserMode(False)
-                UpdateRequestNumber()
-                Dim r$ = Responser.GetResponse($"https://i.instagram.com/api/v1/users/web_profile_info/?username={NameTrue}")
+                Dim r$
+                Dim ____dataGql As Boolean = _UseGQL Or CBool(MySiteSettings.USE_GQL_UserData.Value)
+                If ____dataGql Then
+                    UpdateTokens(True)
+                    r = GetUserDataGQL(Token)
+                    If Not _UseGQL Then ChangeResponserMode(_UseGQL)
+                Else
+                    ChangeResponserMode(False)
+                    UpdateRequestNumber()
+                    r = Responser.GetResponse($"https://i.instagram.com/api/v1/users/web_profile_info/?username={NameTrue}")
+                End If
+
                 If Not r.IsEmptyString Then
                     Using j As EContainer = JsonDocument.Parse(r)
                         If Not j Is Nothing AndAlso j.Contains({"data", "user"}) Then
                             With j({"data", "user"})
-                                ID = .Value("id")
+                                If Not ____dataGql Or ID.IsEmptyString Then ID = .Value("id")
                                 __idFound = True
                                 UserSiteNameUpdate(.Value("full_name"))
+                                IsVerifiedProfile = .Value("is_verified").FromXML(Of Boolean)(False)
+                                IsVerifiedProfile_Checked = True
                                 Dim descr$ = .Value("biography")
                                 If If(.Item("bio_links")?.Count, 0) > 0 Then descr.StringAppend(.Item("bio_links").Select(Function(bl) bl.Value("url")).ListToString(vbNewLine), vbNewLine)
                                 Dim eUrl$ = .Value("external_url")
                                 If Not eUrl.IsEmptyString AndAlso (descr.IsEmptyString OrElse Not descr.Contains(eUrl)) Then descr.StringAppendLine(eUrl)
                                 UserDescriptionUpdate(descr)
+
                                 Dim f As New SFile With {.Path = DownloadContentDefault_GetRootDir(), .Name = "ProfilePicture", .Extension = "jpg"}
                                 f = SFile.IndexReindex(f)
                                 If Not f.Exists Then
