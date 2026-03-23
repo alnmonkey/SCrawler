@@ -22,7 +22,7 @@ Namespace API.PornHub
             If Not r.IsEmptyString Then
                 Dim files As List(Of Sizes) = RegexFields(Of Sizes)(r, {Regex_M3U8_FilesList}, {1, 2}, EDP.ReturnValue)
                 Dim file$
-                If files.ListExists Then files.RemoveAll(Function(f) f.Value = 0 Or (Not DownloadUHD And f.Value > 1080))
+                If files.ListExists Then files.RemoveAll(Function(f) f.Value = 0 Or (Not DownloadUHD And f.Value > 1080) Or (f.Data.IsEmptyString OrElse f.Data.Contains("""")))
                 If files.ListExists Then
                     files.Sort()
                     file = files(0).Data

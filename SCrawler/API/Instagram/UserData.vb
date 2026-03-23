@@ -702,7 +702,7 @@ Namespace API.Instagram
                         If Not IsSavedPosts Then
                             If _UseGQL And Cursor.IsEmptyString And Not Section = Sections.SavedPosts Then UpdateTokens(True)
                             If ID.IsEmptyString Or __idIsEmpty Or Not IsVerifiedProfile_Checked Then GetUserData(Token)
-                            If ID.IsEmptyString Then UserExists = False : _ForceSaveUserInfoOnException = True : Throw New Plugin.ExitException("can't get user ID")
+                            If ID.IsEmptyString Then UserExists = False : _ForceSaveUserInfo = True : Throw New Plugin.ExitException("can't get user ID")
                             If ForceUpdateUserName Then GetUserNameById()
                             If ForceUpdateUserInfo Then GetUserData(Token)
                         End If

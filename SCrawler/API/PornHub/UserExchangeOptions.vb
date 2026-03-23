@@ -44,7 +44,7 @@ Namespace API.PornHub
             DownloadGifs = Not v = CheckState.Unchecked
             MySettings = s
         End Sub
-        Friend Overrides Sub Apply(ByRef u As IPSite)
+        Friend Overrides Sub Apply(ByRef u As UserDataBase)
             MyBase.Apply(u)
             With DirectCast(u, UserData)
                 .DownloadUHD = DownloadUHD

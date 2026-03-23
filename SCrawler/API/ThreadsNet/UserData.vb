@@ -184,7 +184,6 @@ Namespace API.ThreadsNet
             If uex.UserNotFound Then
                 UserExists = False
                 _ForceSaveUserInfo = True
-                _ForceSaveUserInfoOnException = True
             ElseIf ThrowEx Then
                 Throw New ExitException(uex.ErrMessage) With {.SimpleLogLine = True}
             Else
@@ -404,7 +403,6 @@ Namespace API.ThreadsNet
                     If _IdChanged Then
                         If Not idStr.IsEmptyString Then UserDescriptionUpdate(idStr, True, True, True)
                         _ForceSaveUserInfo = True
-                        _ForceSaveUserInfoOnException = True
                     End If
                 End If
                 Return Valid

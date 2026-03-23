@@ -42,5 +42,9 @@ Namespace API.Base
                 u.DownloadTextSpecialFolder = DownloadTextSpecialFolder
             End If
         End Sub
+        Friend Overridable Sub Apply(ByRef u As UserDataBase)
+            ApplyBase(u)
+            If TypeOf u Is IPSite And TypeOf Me Is IPSite Then DirectCast(u, IPSite).QueryString = DirectCast(Me, IPSite).QueryString
+        End Sub
     End Class
 End Namespace

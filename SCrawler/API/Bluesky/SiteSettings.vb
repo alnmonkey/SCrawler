@@ -26,6 +26,10 @@ Namespace API.Bluesky
         <PXML> Friend ReadOnly Property TokenUpdateTime As PropertyValue
         <PropertyOption(ControlText:="Token update", ControlToolTip:="Token refresh interval (in minutes)." & vbCr & "Default: 120.", IsAuth:=True), PXML, PClonable, HiddenControl>
         Friend ReadOnly Property TokenRefreshInterval As PropertyValue
+        <PropertyOption(ControlText:="Download model 'Media'", ControlToolTip:="Parse the 'Media' block", Category:=DeclaredNames.CAT_UserDefs), PXML, PClonable>
+        Friend ReadOnly Property DownloadModelMedia As PropertyValue
+        <PropertyOption(ControlText:="Download model 'Profile'", ControlToolTip:="Parse the 'Posts' block", Category:=DeclaredNames.CAT_UserDefs), PXML, PClonable>
+        Friend ReadOnly Property DownloadModelProfile As PropertyValue
         Friend Sub New(ByVal AccName As String, ByVal Temp As Boolean)
             MyBase.New("Bluesky", "bsky.app", AccName, Temp, My.Resources.SiteResources.BlueskyIcon_32, My.Resources.SiteResources.BlueskyPic_32)
 
@@ -38,11 +42,14 @@ Namespace API.Bluesky
             TokenUpdateTime = New PropertyValue(Now.AddYears(-1))
             TokenRefreshInterval = New PropertyValue(120)
 
+            DownloadModelMedia = New PropertyValue(True)
+            DownloadModelProfile = New PropertyValue(False)
+
             _AllowUserAgentUpdate = False
             UrlPatternUser = "https://bsky.app/profile/{0}"
             ImageVideoContains = "bsky.app"
             UserRegex = RParams.DMS("bsky.app/profile/([^/\?]+)", 1, EDP.ReturnValue)
-            UserOptionsType = GetType(EditorExchangeOptionsBase)
+            UserOptionsType = GetType(EditorExchangeOptions)
         End Sub
         Protected Overrides Function UserOptionsValid(ByVal Options As Object) As Boolean
             Return DirectCast(Options, EditorExchangeOptionsBase).SiteKey = BlueskySiteKey
@@ -95,6 +102,11 @@ Namespace API.Bluesky
             Finally
                 _TokenUpdating = False
             End Try
+        End Function
+        Friend Overrides Function IsMyUser(ByVal UserURL As String) As ExchangeOptions
+            Dim e As ExchangeOptions = MyBase.IsMyUser(UserURL)
+            If Not e.UserName.IsEmptyString AndAlso e.UserName.StartsWith("did:") Then e.UserName = e.UserName.Replace(":", "@")
+            Return e
         End Function
     End Class
 End Namespace

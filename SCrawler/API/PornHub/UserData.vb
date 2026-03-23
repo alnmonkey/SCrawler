@@ -258,7 +258,6 @@ Namespace API.PornHub
         Private _PageVideosRepeat As Integer = 0
         Protected Overrides Sub DownloadDataF(ByVal Token As CancellationToken)
             Try
-                UpdateM3U8URLS = False
                 PlaylistToken = String.Empty
                 Responser.ResetStatus()
                 _PageVideosRepeat = 0
@@ -793,31 +792,29 @@ Namespace API.PornHub
         End Sub
 #End Region
 #Region "Download content"
-        Private UpdateM3U8URLS As Boolean = False
-        Private UpdateM3U8URLS_Error As Boolean = False
         Protected Overrides Sub DownloadContent(ByVal Token As CancellationToken)
-            Try : DownloadContentDefault(Token) : Finally : UpdateM3U8URLS = False : End Try
+            DownloadContentDefault(Token)
         End Sub
         Protected Overloads Overrides Function DownloadM3U8(ByVal URL As String, ByVal Media As UserMedia, ByVal DestinationFile As SFile,
                                                             ByVal Token As CancellationToken) As SFile
-            UpdateM3U8URLS_Error = False
-            Return DownloadM3U8(URL, Media, DestinationFile, Token, UpdateM3U8URLS)
+            Return DownloadM3U8(URL, Media, DestinationFile, Token, 0)
         End Function
         Private Overloads Function DownloadM3U8(ByVal URL As String, ByVal Media As UserMedia, ByVal DestinationFile As SFile,
-                                                ByVal Token As CancellationToken, ByVal Second As Boolean) As SFile
+                                                ByVal Token As CancellationToken, ByVal Round As Integer) As SFile
+            Const MaxRound% = 2
             Try
-                If Second Then
+                If Round > 0 Then
                     Dim r$ = Responser.Curl(Media.URL_BASE,, EDP.ReturnValue)
                     If Not r.IsEmptyString Then Media.URL = CreateVideoURL(r).IfNullOrEmpty(URL) : URL = Media.URL
                 End If
                 Dim f As SFile = M3U8.Download(URL, Responser, DestinationFile, DownloadUHD, Token, Progress, Not IsSingleObjectDownload)
-                If Not f.Exists And Not Second Then UpdateM3U8URLS = True : f = DownloadM3U8(URL, Media, DestinationFile, Token, True)
+                If Not f.Exists Then f = Nothing
+                If f.IsEmptyString And Round < MaxRound Then f = DownloadM3U8(URL, Media, DestinationFile, Token, Round + 1)
                 Return f
             Catch ex As Exception
-                If Not UpdateM3U8URLS_Error Then
-                    UpdateM3U8URLS_Error = True
+                If Round < MaxRound Then
                     Thread.Sleep(1000)
-                    Return DownloadM3U8(URL, Media, DestinationFile, Token, True)
+                    Return DownloadM3U8(URL, Media, DestinationFile, Token, Round + 1)
                 End If
                 Return Nothing
             End Try
@@ -917,7 +914,6 @@ Namespace API.PornHub
 #End Region
 #Region "DownloadSingleObject"
         Protected Overrides Sub DownloadSingleObject_GetPosts(ByVal Data As IYouTubeMediaContainer, ByVal Token As CancellationToken)
-            UpdateM3U8URLS = False
             _TempMediaList.Add(New UserMedia(Data.URL, UTypes.VideoPre))
             ReparseVideo(Token, True, Data)
         End Sub

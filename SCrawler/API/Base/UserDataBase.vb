@@ -360,8 +360,8 @@ Namespace API.Base
                 Me._UserSiteName = _UserSiteName
             End Set
         End Property
-        Protected Sub UserSiteNameUpdate(ByVal NewName As String)
-            If Not NewName.IsEmptyString And (UserSiteName.IsEmptyString Or Settings.UpdateUserSiteNameEveryTime) Then UserSiteName = NewName
+        Protected Sub UserSiteNameUpdate(ByVal NewName As String, Optional ByVal Force As Boolean = False)
+            If Not NewName.IsEmptyString And (UserSiteName.IsEmptyString Or Settings.UpdateUserSiteNameEveryTime Or Force) Then UserSiteName = NewName
         End Sub
         Friend ReadOnly Property UserModel As UsageModel Implements IUserData.UserModel
             Get
@@ -1030,7 +1030,7 @@ BlockNullPicture:
             End Try
         End Sub
         Private Sub UpdateUserInformation_Ex()
-            If _ForceSaveUserInfoOnException Then UpdateUserInformation()
+            If _ForceSaveUserInfo Then UpdateUserInformation()
         End Sub
         Friend Overridable Overloads Sub UpdateUserInformation() Implements IUserData.UpdateUserInformation
             UpdateUserInformation(False)
@@ -1207,7 +1207,6 @@ BlockNullPicture:
         Protected UseClientTokens As Boolean = False
         Protected _ForceSaveUserData As Boolean = False
         Protected _ForceSaveUserInfo As Boolean = False
-        Protected _ForceSaveUserInfoOnException As Boolean = False
         Private _DownloadInProgress As Boolean = False
         Private _EnvirUserExists As Boolean
         Private _EnvirUserSuspended As Boolean
@@ -1227,7 +1226,6 @@ BlockNullPicture:
             _DescriptionEveryTime = Settings.UpdateUserDescriptionEveryTime
             _ForceSaveUserData = False
             _ForceSaveUserInfo = False
-            _ForceSaveUserInfoOnException = False
             _EnvirUserExists = UserExists
             _EnvirUserSuspended = UserSuspended
             _EnvirCreatedByChannel = CreatedByChannel
@@ -1244,8 +1242,8 @@ BlockNullPicture:
                 Select Case Caller
                     Case NameOf(UserExists) : If Not _EnvirUserExists = CBool(NewValue) Then _EnvirChanged = True : _EnvirInvokeUserUpdated = True
                     Case NameOf(UserSuspended) : If Not _EnvirUserSuspended = CBool(NewValue) Then _EnvirChanged = True : _EnvirInvokeUserUpdated = True
-                    Case NameOf(NameTrue) : _EnvirChanged = True : _ForceSaveUserInfo = True : _ForceSaveUserInfoOnException = True
-                    Case NameOf(ID) : _EnvirChanged = True : _ForceSaveUserInfo = True : _ForceSaveUserInfoOnException = True
+                    Case NameOf(NameTrue) : _EnvirChanged = True : _ForceSaveUserInfo = True
+                    Case NameOf(ID) : _EnvirChanged = True : _ForceSaveUserInfo = True
                     Case Else : _EnvirChanged = True
                 End Select
             End If
@@ -1843,7 +1841,8 @@ BlockNullPicture:
 
                                         updateDownCount(False)
 
-                                        v.File = DownloadContentDefault_ConvertWebp(ChangeFileNameByProvider(f, v), postProcessWebp)
+                                        v.File = ChangeFileNameByProvider(f, v)
+                                        v.File = DownloadContentDefault_ConvertWebp(v, postProcessWebp)
                                         v.State = UStates.Downloaded
                                         DownloadContentDefault_PostProcessing(v, f, Token)
                                         If UseMD5Comparison And (v.Type = UTypes.GIF Or v.Type = UTypes.Picture) Then
@@ -1943,7 +1942,11 @@ stxt:
         End Function
         Protected Overridable Sub DownloadContentDefault_PostProcessing(ByRef m As UserMedia, ByVal File As SFile, ByVal Token As CancellationToken)
         End Sub
-        Protected Overridable Function DownloadContentDefault_ConvertWebp(ByVal WebpFile As SFile, ByVal Process As Boolean) As SFile
+        Protected Overridable Function DownloadContentDefault_ConvertWebp(ByVal m As UserMedia, ByVal Process As Boolean) As SFile
+            Return DownloadContentDefault_ConvertWebp_Impl(m, Process)
+        End Function
+        Protected Overridable Function DownloadContentDefault_ConvertWebp_Impl(ByVal m As UserMedia, ByVal Process As Boolean) As SFile
+            Dim WebpFile As SFile = m.File
             Dim f As SFile = WebpFile
             If Process AndAlso f.Exists Then
                 f.Path = $"{f.PathWithSeparator}Sources"
@@ -1958,6 +1961,24 @@ stxt:
                 End If
             End If
             Return f
+        End Function
+        Protected Function DownloadContentDefault_ConvertWebp_TestImg(ByVal m As UserMedia, ByVal Process As Boolean) As SFile
+            If m.Type = UTypes.Picture And Settings.DownloadNativeImageFormat Then
+                Using testImg As New UserImage.ImageRenderer2(m.File, EDP.ReturnValue)
+                    If testImg.IsWebP Then
+                        Dim f As SFile = m.File
+                        If f.Extension.IsEmptyString OrElse Not f.Extension = UserImage.ExtWebp Then
+                            f.Extension = UserImage.ExtWebp
+                            f = SFile.Rename(m.File, f,, EDP.ReturnValue).IfNullOrEmpty(m.File)
+                        End If
+                        m.File = f
+                        Return DownloadContentDefault_ConvertWebp_Impl(m, True).IfNullOrEmpty(f)
+                    End If
+                End Using
+            ElseIf Process Then
+                Return DownloadContentDefault_ConvertWebp_Impl(m, Process)
+            End If
+            Return m.File
         End Function
         Protected Overridable Function DownloadContentDefault_ProcessDownloadException() As Boolean
             Return True

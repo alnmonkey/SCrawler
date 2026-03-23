@@ -12,6 +12,7 @@ Imports PersonalUtilities.Forms
 Imports PersonalUtilities.Tools
 Imports SCrawler.API.Base
 Imports UserMediaD = SCrawler.DownloadObjects.TDownloader.UserMediaD
+Imports ImageRenderer2 = SCrawler.UserImage.ImageRenderer2
 Namespace DownloadObjects
     <ToolboxItem(False), DesignTimeVisible(False)>
     Public Class FeedMedia
@@ -166,42 +167,6 @@ Namespace DownloadObjects
         Public Sub New()
             InitializeComponent()
         End Sub
-        Private Class ImageRenderer2 : Inherits ImageRenderer
-            Friend NativeFormat As String = Nothing
-            Friend ImgErr As Exception = Nothing
-            Friend Sub New(ByVal ImgPath As SFile, Optional ByVal e As ErrorsDescriber = Nothing)
-                MyBase.New()
-                Try
-                    If ImgPath.Exists(SFO.File, False) Then
-                        OriginalImageBytes = SFile.GetBytes(ImgPath, EDP.ThrowException)
-                        Try
-                            OriginalImage = GetImage(OriginalImageBytes)
-                        Catch exInternal As Exception
-                            HasError = True
-                            ImgErr = exInternal
-                            NativeFormat = GetTrueFormat(OriginalImageBytes, EDP.ReturnValue)
-                        End Try
-                    End If
-                    Address = ImgPath
-                Catch ex As Exception
-                    HasError = True
-                    NativeFormat = GetTrueFormat(OriginalImageBytes, EDP.ReturnValue)
-                    If Not e.Exists Then e = EDP.ThrowException
-                    ErrorsDescriber.Execute(e, ex, $"ImageRenderer2.New({ImgPath})")
-                End Try
-            End Sub
-            Friend Shared Function GetTrueFormat(ByVal Img() As Byte, Optional ByVal e As ErrorsDescriber = Nothing) As String
-                Try
-                    Using ms As New MemoryStream(Img, 0, Img.Length)
-                        Return System.Windows.Media.Imaging.BitmapDecoder.Create(ms, Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
-                                                                                 Windows.Media.Imaging.BitmapCacheOption.OnLoad).Metadata.Format
-                    End Using
-                Catch ex As Exception
-                    If Not e.Exists Then e = EDP.ThrowException
-                    Return ErrorsDescriber.Execute(e, ex, "[ImageRenderer2.GetTrueFormat()]")
-                End Try
-            End Function
-        End Class
         Friend Sub New(ByVal Media As UserMediaD, ByVal Width As Integer, ByVal Height As Integer, ByVal IsSession As Boolean, ByVal ExtractText As Boolean)
             Try
                 InitializeComponent()

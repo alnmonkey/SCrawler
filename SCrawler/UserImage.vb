@@ -150,4 +150,45 @@ Friend Class UserImage : Inherits ImageRenderer
     Private Shared Function ConvertWebpTryImageMagick(ByVal InitFile As SFile, ByVal DestFile As SFile) As Boolean
         Return ImageRendererExt.ConvertWebp(InitFile, DestFile, EDP.SendToLog + EDP.ReturnValue)
     End Function
+    Friend Class ImageRenderer2 : Inherits ImageRenderer
+        Friend NativeFormat As String = Nothing
+        Friend ImgErr As Exception = Nothing
+        Friend ReadOnly Property IsWebP As Boolean
+            Get
+                Return NativeFormat.IfNullOrEmpty(ExtJpg).ToLower = ExtWebp
+            End Get
+        End Property
+        Friend Sub New(ByVal ImgPath As SFile, Optional ByVal e As ErrorsDescriber = Nothing)
+            MyBase.New()
+            Try
+                If ImgPath.Exists(SFO.File, False) Then
+                    OriginalImageBytes = SFile.GetBytes(ImgPath, EDP.ThrowException)
+                    Try
+                        OriginalImage = GetImage(OriginalImageBytes)
+                    Catch exInternal As Exception
+                        HasError = True
+                        ImgErr = exInternal
+                        NativeFormat = GetTrueFormat(OriginalImageBytes, EDP.ReturnValue)
+                    End Try
+                End If
+                Address = ImgPath
+            Catch ex As Exception
+                HasError = True
+                NativeFormat = GetTrueFormat(OriginalImageBytes, EDP.ReturnValue)
+                If Not e.Exists Then e = EDP.ThrowException
+                ErrorsDescriber.Execute(e, ex, $"ImageRenderer2.New({ImgPath})")
+            End Try
+        End Sub
+        Friend Shared Function GetTrueFormat(ByVal Img() As Byte, Optional ByVal e As ErrorsDescriber = Nothing) As String
+            Try
+                Using ms As New MemoryStream(Img, 0, Img.Length)
+                    Return System.Windows.Media.Imaging.BitmapDecoder.Create(ms, Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
+                                                                             Windows.Media.Imaging.BitmapCacheOption.OnLoad).Metadata.Format
+                End Using
+            Catch ex As Exception
+                If Not e.Exists Then e = EDP.ThrowException
+                Return ErrorsDescriber.Execute(e, ex, "[ImageRenderer2.GetTrueFormat()]")
+            End Try
+        End Function
+    End Class
 End Class

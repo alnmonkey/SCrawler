@@ -194,6 +194,7 @@
     <Compile Include="API\Base\TokenBatch.vb" />
     <Compile Include="API\Base\YTDLP.vb" />
     <Compile Include="API\Bluesky\Declarations.vb" />
+    <Compile Include="API\Bluesky\EditorExchangeOptions.vb" />
     <Compile Include="API\Bluesky\M3U8.vb" />
     <Compile Include="API\Bluesky\SiteSettings.vb" />
     <Compile Include="API\Bluesky\UserData.vb" />

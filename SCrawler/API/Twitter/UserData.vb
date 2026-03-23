@@ -523,7 +523,7 @@ Namespace API.Twitter
                                                                     With .ItemF({0, "content", "items", 0, "item", "itemContent", "tweet_results", "result", "tweet", "community_results", "result"})
                                                                         If .ListExists Then
                                                                             If ID = .Value("id_str") Then
-                                                                                UserSiteNameUpdate(.Value("name"))
+                                                                                UserSiteNameUpdate(.Value("name"), True)
                                                                                 UserDescriptionUpdate(.Value("description"))
 
                                                                                 icon = .Value({"custom_banner_media", "media_info"}, "original_img_url").
@@ -543,12 +543,12 @@ Namespace API.Twitter
                                                         If .ListExists Then
                                                             If ID.IsEmptyString Then ID = .Value("rest_id")
                                                             icon = .Value({"avatar"}, "image_url")
-                                                            UserSiteNameUpdate(.Value({"core"}, "name"))
+                                                            UserSiteNameUpdate(.Value({"core"}, "name"), True)
                                                             Dim tScreenName$ = .Value({"core"}, "screen_name")
                                                             With .Item({"legacy"})
                                                                 If .ListExists Then
                                                                     If onlyUpdateUser Then
-                                                                        If Not NameTrue = tScreenName Or 1 = 1 Then
+                                                                        If Not NameTrue = tScreenName Then
                                                                             Dim uStr$ = $"username changed from '{NameTrue}' to '{tScreenName}'"
                                                                             LogError(Nothing, uStr)
                                                                             UserDescriptionUpdate(uStr, True, True, True)
@@ -556,7 +556,7 @@ Namespace API.Twitter
                                                                         NameTrue = tScreenName
                                                                     End If
                                                                     If .Value("screen_name").IfNullOrEmpty(tScreenName).StringToLower = NameTrue.ToLower Then
-                                                                        UserSiteNameUpdate(.Value("name"))
+                                                                        UserSiteNameUpdate(.Value("name"), True)
                                                                         UserDescriptionUpdate(.Value("description"))
 
                                                                         If icon.IsEmptyString Then icon = .Value("profile_image_url_https")
@@ -1190,10 +1190,12 @@ nextpIndx:
             Dim cache As CacheKeeper = Nothing
             Try
                 If ContentMissingExists Or (_ReparseLikes And LikesPosts.Count > 0) Then
+                    Const __entries$ = "entries"
                     Dim m As UserMedia, mTmp As UserMedia
                     Dim PostDate$
                     Dim nodes As List(Of String()) = GetContainerSubnodes()
                     Dim node$()
+                    Dim entriesNode As Predicate(Of EContainer) = Function(ee) ee.Contains(__entries)
                     Dim j As EContainer, n As EContainer
                     Dim f As SFile
                     Dim i%, ii%
@@ -1229,7 +1231,7 @@ nextpIndx:
                                             f = GDLRenameFile(files(ii), ii)
                                             j = JsonDocument.Parse(f.GetText)
                                             If Not j Is Nothing Then
-                                                With j.ItemF({"data", 0, "instructions", 0, "entries"})
+                                                With j.ItemF({"data", 0, "instructions", entriesNode, __entries})
                                                     If .ListExists Then
                                                         If IsSingleObjectDownload Or DownloadBroadcasts Then
                                                             mTmp = ExtractBroadcast(.Self, m.Post.ID, String.Empty, nodes)

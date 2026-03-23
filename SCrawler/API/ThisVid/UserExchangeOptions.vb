@@ -35,7 +35,7 @@ Namespace API.ThisVid
             DifferentFolders = u.DifferentFolders
             MySettings = u.HOST.Source
         End Sub
-        Friend Overrides Sub Apply(ByRef u As IPSite)
+        Friend Overrides Sub Apply(ByRef u As UserDataBase)
             MyBase.Apply(u)
             With DirectCast(u, UserData)
                 .DownloadPublic = DownloadPublic

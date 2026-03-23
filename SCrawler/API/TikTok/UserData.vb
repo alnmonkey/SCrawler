@@ -192,10 +192,14 @@ Namespace API.TikTok
             UserCache.DisposeIfReady(False)
             UserCache = Nothing
         End Sub
+        Private StoryStatus As Boolean = True
+        Private StoryStatusFound As Boolean = False
         Protected Overloads Overrides Sub DownloadDataF(ByVal Token As CancellationToken)
             ValidateCache()
+            StoryStatus = True
+            StoryStatusFound = False
             If GetTimeline Then DownloadDataF(Sections.Timeline, Token)
-            If GetStoriesUser Then DownloadDataF(Sections.UserStories, Token)
+            If GetStoriesUser And StoryStatus Then DownloadDataF(Sections.UserStories, Token)
             If GetReposts Then DownloadDataF(Sections.Reposts, Token)
         End Sub
         Protected Overloads Sub DownloadDataF(ByVal Section As Sections, ByVal Token As CancellationToken)
@@ -271,8 +275,8 @@ Namespace API.TikTok
                             Else
                                 .TempPostsList = New List(Of String)
                             End If
-                            .Execute(CreateGDLCommand(URL, gdlCmd))
-                            If Not PhotosDownloaded Then _ForceSaveUserInfo = True : _ForceSaveUserInfoOnException = True
+                            .Execute(CreateGDLCommand(URL, gdlCmd,,,, CObj(IIf(Section = Sections.Timeline, dateAfter, Nothing))))
+                            If Not PhotosDownloaded Then _ForceSaveUserInfo = True
                             PhotosDownloaded = True
                         End With
                     End Using
@@ -436,6 +440,10 @@ Namespace API.TikTok
                                             End If
                                         End With
                                     Else
+                                        If Section = Sections.Timeline And Not StoryStatusFound And j.ContainsF({0, "webapp.user-detail", "userInfo", "user"}, "UserStoryStatus") Then
+                                            StoryStatusFound = True
+                                            StoryStatus = j.ItemF({0, "webapp.user-detail", "userInfo", "user"}, "UserStoryStatus").Value.FromXML(Of Boolean)(False)
+                                        End If
                                         With j.ItemF({0, "webapp.video-detail", "itemInfo", "itemStruct"})
                                             If .ListExists Then
                                                 postID = .Value("id")
@@ -604,12 +612,16 @@ Namespace API.TikTok
 #End Region
 #Region "GDL Support"
         Private Function CreateGDLCommand(ByVal URL As String, Optional ByVal SectionCommand As String = Nothing,
-                                          Optional ByVal IsDownload As Boolean = False, Optional ByVal Output As SFile = Nothing) As String
+                                          Optional ByVal IsDownload As Boolean = False, Optional ByVal Output As SFile = Nothing,
+                                          Optional ByVal DateBefore As Date? = Nothing, Optional ByVal DateAfter As Date? = Nothing) As String
             Dim command$ = $"""{Settings.GalleryDLFile}"" "
             If Not IsDownload Then
                 command &= "--verbose --no-download --no-skip --write-pages "
             Else
                 command &= $"--dest ""{Output.PathNoSeparator}"" "
+            End If
+            If DateBefore.HasValue Or DateAfter.HasValue Then
+                With If(DateAfter, DateBefore).Value : command &= $"--filter ""date {IIf(DateAfter.HasValue, ">", "<")} datetime({ .Year}, { .Month}, { .Day}) or terminate()"" " : End With
             End If
             If Not CBool(If(IsSingleObjectDownload, MySettings.UseParsedVideoDateSTD, MySettings.UseParsedVideoDate).Value) Then command &= "--no-mtime "
             command &= $"{SectionCommand} {URL}"

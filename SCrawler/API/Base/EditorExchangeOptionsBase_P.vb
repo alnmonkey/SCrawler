@@ -31,10 +31,6 @@ Namespace API.Base
             MyBase.New(s)
             DisableBase()
         End Sub
-        Friend Overridable Sub Apply(ByRef u As IPSite)
-            ApplyBase(u)
-            u.QueryString = QueryString
-        End Sub
         Protected Overridable Sub DisableBase()
             _ApplyBase_Name = False
             _ApplyBase_Text = False

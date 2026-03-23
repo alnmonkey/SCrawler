@@ -16,6 +16,11 @@ Imports UTypes = SCrawler.API.Base.UserMedia.Types
 Imports UStates = SCrawler.API.Base.UserMedia.States
 Namespace API.Bluesky
     Friend Class UserData : Inherits UserDataBase
+#Region "XML names"
+        Private Const Name_DownloadModelMedia As String = "DownloadModelMedia"
+        Private Const Name_DownloadModelProfile As String = "DownloadModelProfile"
+        Private Const Name_ForceParseProfileInfo As String = "ForceParseProfileInfo"
+#End Region
 #Region "Declarations"
         Private ReadOnly Property MySettings As SiteSettings
             Get
@@ -28,16 +33,45 @@ Namespace API.Bluesky
             End Get
         End Property
         Private ReadOnly _TmpPosts2 As List(Of String)
+        Friend Property DownloadModelMedia As Boolean = True
+        Friend Property DownloadModelProfile As Boolean = False
+        Private Property ForceParseProfileInfo As Boolean = False
 #End Region
 #Region "Loader"
+        Private Sub UpdateUserOptions()
+            If ID.IsEmptyString AndAlso Not Name.IsEmptyString AndAlso Name.StartsWith("did@") Then
+                NameTrue = Name.Replace("@", ":")
+                ID = NameTrue
+                ForceParseProfileInfo = True
+            End If
+        End Sub
         Protected Overrides Sub LoadUserInformation_OptionalFields(ByRef Container As XmlFile, ByVal Loading As Boolean)
+            With Container
+                If Loading Then
+                    If .Contains(Name_DownloadModelMedia) Then
+                        DownloadModelMedia = .Value(Name_DownloadModelMedia).FromXML(Of Boolean)(True)
+                        DownloadModelProfile = .Value(Name_DownloadModelProfile).FromXML(Of Boolean)(False)
+                    Else
+                        DownloadModelMedia = ParseUserMediaOnly
+                        DownloadModelProfile = Not ParseUserMediaOnly
+                    End If
+                    ForceParseProfileInfo = .Value(Name_ForceParseProfileInfo).FromXML(Of Boolean)(False)
+                Else
+                    If ID.IsEmptyString Then
+                        UpdateUserOptions()
+                        .Value(Name_UserID) = ID
+                    End If
+                    .Add(Name_DownloadModelMedia, DownloadModelMedia.BoolToInteger)
+                    .Add(Name_DownloadModelProfile, DownloadModelProfile.BoolToInteger)
+                    .Add(Name_ForceParseProfileInfo, ForceParseProfileInfo.BoolToInteger)
+                End If
+            End With
         End Sub
         Friend Overrides Function ExchangeOptionsGet() As Object
-            Return New EditorExchangeOptionsBase(Me) With {.SiteKey = BlueskySiteKey}
+            Return New EditorExchangeOptions(Me)
         End Function
         Friend Overrides Sub ExchangeOptionsSet(ByVal Obj As Object)
-            If Not Obj Is Nothing AndAlso TypeOf Obj Is EditorExchangeOptionsBase AndAlso
-               DirectCast(Obj, EditorExchangeOptionsBase).SiteKey = BlueskySiteKey Then DirectCast(Obj, EditorExchangeOptionsBase).ApplyBase(Me)
+            If Not Obj Is Nothing AndAlso TypeOf Obj Is EditorExchangeOptions Then DirectCast(Obj, EditorExchangeOptions).Apply(Me)
         End Sub
 #End Region
 #Region "Initializer"
@@ -66,6 +100,13 @@ Namespace API.Bluesky
         Protected Overrides Sub DownloadDataF(ByVal Token As CancellationToken)
             _TmpPosts2.Clear()
             Try
+                If Not DownloadModelMedia And Not DownloadModelProfile Then
+                    DownloadModelMedia = True
+                ElseIf DownloadModelMedia Then
+                    DownloadModelProfile = False
+                Else
+                    DownloadModelMedia = False
+                End If
                 If Not CBool(MySettings.CookiesEnabled.Value) Then Responser.Cookies.Clear()
                 UpdateToken(, True)
                 _TokenUpdateCount = 0
@@ -79,7 +120,7 @@ Namespace API.Bluesky
         Private Overloads Sub DownloadData(ByVal Cursor As String, ByVal Token As CancellationToken)
             Dim URL$ = String.Empty
             Try
-                If Not IsSavedPosts And ID.IsEmptyString Then GetProfileInfo(Token)
+                If (Not IsSavedPosts And ID.IsEmptyString) Or ForceParseProfileInfo Then GetProfileInfo(Token)
                 If Not IsSavedPosts And ID.IsEmptyString Then Throw New ArgumentNullException("ID", "ID is null")
                 If UpdateToken() Then
                     Dim nextCursor$ = String.Empty
@@ -91,7 +132,9 @@ Namespace API.Bluesky
                         n = {"bookmarks"}
                         p = {"item"}
                     Else
-                        URL = $"https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed?actor={ID_Encoded}&filter=posts_and_author_threads&includePins=false&limit=99"
+                        'posts_and_author_threads
+                        'posts_with_media
+                        URL = $"https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed?actor={ID_Encoded}&filter={IIf(DownloadModelMedia, "posts_with_media", "posts_and_author_threads")}&includePins=false&limit=99"
                         If Not Cursor.IsEmptyString Then URL &= $"&cursor={SymbolsConverter.ASCII.EncodeSymbolsOnly(Cursor)}"
                         n = {"feed"}
                         p = {"post"}
@@ -106,7 +149,7 @@ Namespace API.Bluesky
                                     If .ListExists Then
                                         For Each post As EContainer In .Self
                                             With post(p)
-                                                c = DefaultParser(.Self,, nextCursor)
+                                                c = DefaultParser(.Self) ',, nextCursor)
                                                 Select Case c
                                                     Case CInt(DateResult.Skip) * -1 : Continue For
                                                     Case CInt(DateResult.Exit) * -1 : Exit Sub
@@ -238,6 +281,7 @@ Namespace API.Bluesky
 #Region "GetProfileInfo"
         Private Sub GetProfileInfo(ByVal Token As CancellationToken)
             Try
+                If ForceParseProfileInfo Then ForceParseProfileInfo = False : _ForceSaveUserInfo = True
                 If UpdateToken() Then
                     Dim r$ = Responser.GetResponse($"https://bsky.social/xrpc/app.bsky.actor.getProfile?actor={ID.IfNullOrEmpty(NameTrue)}")
                     TokenUpdateCountReset()
@@ -343,6 +387,9 @@ Namespace API.Bluesky
         End Sub
         Protected Overrides Function DownloadM3U8(ByVal URL As String, ByVal Media As UserMedia, ByVal DestinationFile As SFile, ByVal Token As CancellationToken) As SFile
             Return M3U8.Download(URL, DestinationFile, Token, Progress, Not IsSingleObjectDownload)
+        End Function
+        Protected Overrides Function DownloadContentDefault_ConvertWebp(ByVal m As UserMedia, ByVal Process As Boolean) As SFile
+            Return DownloadContentDefault_ConvertWebp_TestImg(m, Process)
         End Function
 #End Region
 #Region "DownloadSingleObject"

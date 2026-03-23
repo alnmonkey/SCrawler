@@ -23,7 +23,7 @@ Namespace API.Xhamster
             MyBase.New(s)
             GetMoments = s.GetMoments.Value
         End Sub
-        Friend Overrides Sub Apply(ByRef u As IPSite)
+        Friend Overrides Sub Apply(ByRef u As UserDataBase)
             MyBase.Apply(u)
             DirectCast(u, UserData).GetMoments = GetMoments
         End Sub

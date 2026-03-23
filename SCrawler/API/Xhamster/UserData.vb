@@ -298,6 +298,7 @@ Namespace API.Xhamster
                         containerNodes.Add({"videoListComponent", "videoThumbProps"})
                     Else
                         containerNodes.Add({"userGalleriesCollection"})
+                        containerNodes.Add({"contentComponent", "items"})
                     End If
                 End If
 
@@ -798,6 +799,9 @@ Namespace API.Xhamster
             Dim cmd$ = $"""{Settings.YtdlpFile}"" --format {DirectCast(Media.Object, XMMediaInfo).FormatID}{c} {Media.URL_BASE} -o ""{DestinationFile}"""
             Using ytdlp As New YTDLP.YTDLPBatch(TokenPersonal,, DestinationFile) : ytdlp.Encoding = Settings.CMDEncoding : ytdlp.Execute(cmd) : End Using
             Return DestinationFile
+        End Function
+        Protected Overrides Function DownloadContentDefault_ConvertWebp(ByVal m As UserMedia, ByVal Process As Boolean) As SFile
+            Return DownloadContentDefault_ConvertWebp_TestImg(m, Process)
         End Function
 #End Region
 #Region "Create media"
